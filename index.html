@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<title>Drawing Notebook</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --elevated: #ffffff;
+  --text: #161616;
+  --border: #e0e0e0;
+  --toolbar-bg: #f5f5f5;
+  --active: #0569fa;
+  --active-text: #ffffff;
+  --canvas-bg: #fafafa;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000;
+    --elevated: #121212;
+    --text: #ffffff;
+    --border: #333333;
+    --toolbar-bg: #1a1a1a;
+    --active: #58a6ff;
+    --active-text: #000000;
+    --canvas-bg: #0a0a0a;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --elevated: #121212;
+  --text: #ffffff;
+  --border: #333333;
+  --toolbar-bg: #1a1a1a;
+  --active: #58a6ff;
+  --active-text: #000000;
+  --canvas-bg: #0a0a0a;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light dark;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  background-color: var(--bg);
+}
+
+body {
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  z-index: 10;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--elevated);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.btn:hover {
+  background: var(--toolbar-bg);
+}
+
+.btn.active {
+  background: var(--active);
+  color: var(--active-text);
+  border-color: var(--active);
+}
+
+.btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.color-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 50%;
+  padding: 0;
+  border: 2px solid var(--border);
+}
+
+.color-btn.active {
+  border-color: var(--active);
+  box-shadow: 0 0 0 2px var(--active);
+}
+
+.size-btn {
+  position: relative;
+}
+
+.size-btn::after {
+  content: '';
+  width: var(--size, 4px);
+  height: var(--size, 4px);
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.page-indicator {
+  font-size: 14px;
+  min-width: 60px;
+  text-align: center;
+  user-select: none;
+}
+
+/* Main content area */
+.content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Text Editor */
+.text-editor {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.text-editor article {
+  outline: none;
+  padding: 18px max(18px, calc(50vw - 400px));
+  width: 100%;
+  min-height: 100%;
+  font: 18px / 1.5 system-ui;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* Canvas */
+.canvas-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.canvas-container.drawing-active {
+  pointer-events: auto;
+}
+
+.canvas-container canvas {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* Hidden state */
+.hidden {
+  display: none !important;
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+  .toolbar {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  
+  .btn {
+    min-width: 32px;
+    height: 32px;
+  }
+  
+  .color-btn {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+  }
+  
+  .toolbar-divider {
+    height: 20px;
+  }
+  
+  .text-editor article {
+    padding: 12px;
+    font-size: 16px;
+  }
+}
+
+@media print {
+  .toolbar, .noprint {
+    display: none !important;
+  }
+  .content {
+    position: static;
+  }
+  .text-editor {
+    position: static;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar noprint">
+  <!-- Mode Toggle -->
+  <div class="toolbar-group">
+    <button class="btn active" id="textModeBtn" title="Text Mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>
+      </svg>
+    </button>
+    <button class="btn" id="drawModeBtn" title="Drawing Mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/>
+      </svg>
+    </button>
+  </div>
+  
+  <div class="toolbar-divider"></div>
+  
+  <!-- Drawing Tools (hidden in text mode) -->
+  <div class="toolbar-group drawing-tools hidden">
+    <button class="btn active" id="penTool" title="Pen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+      </svg>
+    </button>
+    <button class="btn" id="eraserTool" title="Eraser">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>
+      </svg>
+    </button>
+    <button class="btn" id="clearBtn" title="Clear Canvas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+      </svg>
+    </button>
+  </div>
+  
+  <!-- Pen Sizes -->
+  <div class="toolbar-group drawing-tools hidden">
+    <button class="btn size-btn active" data-size="2" style="--size: 4px" title="Small"></button>
+    <button class="btn size-btn" data-size="5" style="--size: 8px" title="Medium"></button>
+    <button class="btn size-btn" data-size="10" style="--size: 14px" title="Large"></button>
+  </div>
+  
+  <!-- Colors -->
+  <div class="toolbar-group drawing-tools hidden">
+    <button class="color-btn active" data-color="#000000" style="background:#000000" title="Black"></button>
+    <button class="color-btn" data-color="#ef4444" style="background:#ef4444" title="Red"></button>
+    <button class="color-btn" data-color="#3b82f6" style="background:#3b82f6" title="Blue"></button>
+    <button class="color-btn" data-color="#22c55e" style="background:#22c55e" title="Green"></button>
+    <button class="color-btn" data-color="#f59e0b" style="background:#f59e0b" title="Orange"></button>
+  </div>
+  
+  <div class="toolbar-divider"></div>
+  
+  <!-- Page Navigation -->
+  <div class="toolbar-group">
+    <button class="btn" id="prevPageBtn" title="Previous Page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m15 18-6-6 6-6"/>
+      </svg>
+    </button>
+    <span class="page-indicator" id="pageIndicator">1 / 1</span>
+    <button class="btn" id="nextPageBtn" title="Next Page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m9 18 6-6-6-6"/>
+      </svg>
+    </button>
+    <button class="btn" id="addPageBtn" title="Add Page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14"/><path d="M5 12h14"/>
+      </svg>
+    </button>
+    <button class="btn" id="deletePageBtn" title="Delete Page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14"/>
+      </svg>
+    </button>
+  </div>
+  
+  <div class="toolbar-divider"></div>
+  
+  <!-- Theme Toggle -->
+  <div class="toolbar-group">
+    <button class="btn" id="themeToggleBtn" title="Toggle Light/Dark Mode">
+      <svg id="sunIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+      </svg>
+      <svg id="moonIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Content Area -->
+<div class="content">
+  <!-- Text Editor (always visible) -->
+  <div class="text-editor" id="textEditor">
+    <article contenteditable="plaintext-only" spellcheck autofocus></article>
+  </div>
+  
+  <!-- Drawing Canvas (overlay on top of text) -->
+  <div class="canvas-container" id="canvasContainer">
+    <canvas id="drawingCanvas"></canvas>
+  </div>
+</div>
+
+<script>
+// ============================================
+// Data Models
+// ============================================
+
+function generateId() {
+  return Math.random().toString(36).substring(2, 15);
+}
+
+function createPage() {
+  return {
+    id: generateId(),
+    textContent: '',
+    strokes: []
+  };
+}
+
+function createNotebook() {
+  return {
+    pages: [createPage()],
+    currentPageIndex: 0,
+    currentMode: 'text'
+  };
+}
+
+function addPage(notebook) {
+  const newPage = createPage();
+  return {
+    ...notebook,
+    pages: [...notebook.pages, newPage],
+    currentPageIndex: notebook.pages.length
+  };
+}
+
+function deletePage(notebook, index) {
+  if (notebook.pages.length <= 1) return notebook;
+  const newPages = notebook.pages.filter((_, i) => i !== index);
+  const newIndex = index >= newPages.length ? newPages.length - 1 : index;
+  return {
+    ...notebook,
+    pages: newPages,
+    currentPageIndex: newIndex
+  };
+}
+
+function setCurrentPage(notebook, index) {
+  if (index < 0 || index >= notebook.pages.length) return notebook;
+  return { ...notebook, currentPageIndex: index };
+}
+
+function setMode(notebook, mode) {
+  return { ...notebook, currentMode: mode };
+}
+
+function updatePageText(notebook, text) {
+  const pages = [...notebook.pages];
+  pages[notebook.currentPageIndex] = {
+    ...pages[notebook.currentPageIndex],
+    textContent: text
+  };
+  return { ...notebook, pages };
+}
+
+function addStroke(notebook, stroke) {
+  const pages = [...notebook.pages];
+  pages[notebook.currentPageIndex] = {
+    ...pages[notebook.currentPageIndex],
+    strokes: [...pages[notebook.currentPageIndex].strokes, stroke]
+  };
+  return { ...notebook, pages };
+}
+
+function updateStrokes(notebook, strokes) {
+  const pages = [...notebook.pages];
+  pages[notebook.currentPageIndex] = {
+    ...pages[notebook.currentPageIndex],
+    strokes: strokes
+  };
+  return { ...notebook, pages };
+}
+
+function clearStrokes(notebook) {
+  return updateStrokes(notebook, []);
+}
+
+// ============================================
+// Serialization
+// ============================================
+
+const SEP_PAGE = '\x00';
+const SEP_FIELD = '\x01';
+const SEP_STROKE = '\x02';
+const SEP_POINT = '\x03';
+
+function serialize(notebook) {
+  const parts = [
+    '1', // version
+    notebook.currentMode,
+    String(notebook.pages.length),
+    String(notebook.currentPageIndex)
+  ];
+  
+  for (const page of notebook.pages) {
+    const strokesData = page.strokes.map(stroke => {
+      const pointsStr = stroke.points.map(p => `${p.x.toFixed(5)},${p.y.toFixed(5)}`).join(SEP_POINT);
+      return [stroke.color, String(stroke.size), String(stroke.points.length), pointsStr].join(SEP_STROKE);
+    }).join(SEP_FIELD);
+    
+    parts.push([page.textContent, String(page.strokes.length), strokesData].join(SEP_FIELD));
+  }
+  
+  return parts.join(SEP_PAGE);
+}
+
+function parse(data) {
+  try {
+    const parts = data.split(SEP_PAGE);
+    const version = parts[0];
+    if (version !== '1') throw new Error('Unknown version');
+    
+    const mode = parts[1] === 'drawing' ? 'drawing' : 'text';
+    const pageCount = parseInt(parts[2], 10);
+    const currentPageIndex = parseInt(parts[3], 10);
+    
+    const pages = [];
+    for (let i = 0; i < pageCount; i++) {
+      const pageData = parts[4 + i] || '';
+      const fields = pageData.split(SEP_FIELD);
+      const textContent = fields[0] || '';
+      const strokeCount = parseInt(fields[1] || '0', 10);
+      
+      const strokes = [];
+      for (let j = 0; j < strokeCount; j++) {
+        const strokeData = fields[2 + j];
+        if (!strokeData) continue;
+        
+        const strokeParts = strokeData.split(SEP_STROKE);
+        const color = strokeParts[0] || '#000000';
+        const size = parseInt(strokeParts[1] || '2', 10);
+        const pointCount = parseInt(strokeParts[2] || '0', 10);
+        const pointsStr = strokeParts[3] || '';
+        
+        const points = pointsStr.split(SEP_POINT).slice(0, pointCount).map(p => {
+          const [x, y] = p.split(',').map(Number);
+          return { x: x || 0, y: y || 0 };
+        }).filter(p => !isNaN(p.x) && !isNaN(p.y));
+        
+        strokes.push({ points, color, size });
+      }
+      
+      pages.push({ id: generateId(), textContent, strokes });
+    }
+    
+    if (pages.length === 0) pages.push(createPage());
+    
+    return {
+      pages,
+      currentPageIndex: Math.min(currentPageIndex, pages.length - 1),
+      currentMode: mode
+    };
+  } catch (e) {
+    console.error('Parse error:', e);
+    return createNotebook();
+  }
+}
+
+// ============================================
+// Compression
+// ============================================
+
+async function compress(string) {
+  const byteArray = new TextEncoder().encode(string);
+  const stream = new CompressionStream('deflate-raw');
+  const writer = stream.writable.getWriter();
+  writer.write(byteArray);
+  writer.close();
+  const buffer = await new Response(stream.readable).arrayBuffer();
+  return new Uint8Array(buffer).toBase64({ alphabet: 'base64url' });
+}
+
+async function decompress(b64) {
+  const byteArray = Uint8Array.fromBase64(b64, { alphabet: 'base64url' });
+  const stream = new DecompressionStream('deflate-raw');
+  const writer = stream.writable.getWriter();
+  writer.write(byteArray);
+  writer.close();
+  const buffer = await new Response(stream.readable).arrayBuffer();
+  return new TextDecoder().decode(buffer);
+}
+
+// ============================================
+// URL Hash & LocalStorage
+// ============================================
+
+async function saveToHash(notebook) {
+  const data = serialize(notebook);
+  const hash = '#' + await compress(data);
+  if (location.hash !== hash) {
+    history.replaceState({}, '', hash);
+  }
+}
+
+async function loadFromHash() {
+  if (!location.hash || location.hash.length <= 1) return null;
+  try {
+    const data = await decompress(location.hash.slice(1));
+    return parse(data);
+  } catch (e) {
+    console.error('Failed to load from hash:', e);
+    return null;
+  }
+}
+
+function saveToLocalStorage(notebook) {
+  try {
+    localStorage.setItem('notebook', serialize(notebook));
+  } catch (e) {
+    console.error('Failed to save to localStorage:', e);
+  }
+}
+
+function loadFromLocalStorage() {
+  try {
+    const data = localStorage.getItem('notebook');
+    if (!data) return null;
+    return parse(data);
+  } catch (e) {
+    console.error('Failed to load from localStorage:', e);
+    return null;
+  }
+}
+
+
+// ============================================
+// Text Editor
+// ============================================
+
+function createTextEditor(element, onChange) {
+  const history = [];
+  let historyIndex = -1;
+  let isRecording = false;
+  
+  function recordHistory() {
+    const content = element.textContent || '';
+    const lastRecord = history[historyIndex];
+    if (lastRecord && lastRecord === content) return;
+    
+    historyIndex++;
+    history[historyIndex] = content;
+    history.splice(historyIndex + 1);
+    
+    if (history.length > 1000) {
+      history.shift();
+      historyIndex--;
+    }
+  }
+  
+  const debouncedRecord = debounce(300, () => {
+    recordHistory();
+    isRecording = false;
+  });
+  
+  function handleInput() {
+    if (!isRecording) {
+      recordHistory();
+      isRecording = true;
+    }
+    debouncedRecord();
+    onChange();
+  }
+  
+  function handleKeydown(e) {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.code === 'KeyZ') {
+      e.preventDefault();
+      undo();
+    } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyZ') {
+      e.preventDefault();
+      redo();
+    }
+  }
+  
+  function undo() {
+    if (historyIndex > 0) {
+      historyIndex--;
+      element.textContent = history[historyIndex];
+      onChange();
+    }
+  }
+  
+  function redo() {
+    if (historyIndex < history.length - 1) {
+      historyIndex++;
+      element.textContent = history[historyIndex];
+      onChange();
+    }
+  }
+  
+  element.addEventListener('input', handleInput);
+  element.addEventListener('keydown', handleKeydown);
+  
+  // Initialize history
+  recordHistory();
+  
+  return {
+    set(content) {
+      element.textContent = content;
+      recordHistory();
+    },
+    get() {
+      return element.textContent || '';
+    },
+    focus() {
+      element.focus();
+    },
+    destroy() {
+      element.removeEventListener('input', handleInput);
+      element.removeEventListener('keydown', handleKeydown);
+    }
+  };
+}
+
+// ============================================
+// Drawing Canvas
+// ============================================
+
+function createDrawingCanvas(canvas, options) {
+  const ctx = canvas.getContext('2d');
+  let strokes = [];
+  let currentStroke = null;
+  let currentColor = '#000000';
+  let currentSize = 2;
+  let currentTool = 'pen';
+  let isDrawing = false;
+  
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.scale(dpr, dpr);
+    render();
+  }
+  
+  function render() {
+    const rect = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    
+    for (const stroke of strokes) {
+      drawStroke(stroke, rect);
+    }
+    
+    if (currentStroke && currentStroke.points.length > 0) {
+      drawStroke(currentStroke, rect);
+    }
+  }
+  
+  function drawStroke(stroke, rect) {
+    if (stroke.points.length < 2) return;
+    
+    ctx.beginPath();
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.size;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    const first = stroke.points[0];
+    ctx.moveTo(first.x * rect.width, first.y * rect.height);
+    
+    for (let i = 1; i < stroke.points.length; i++) {
+      const p = stroke.points[i];
+      ctx.lineTo(p.x * rect.width, p.y * rect.height);
+    }
+    
+    ctx.stroke();
+  }
+  
+  function getPoint(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+  }
+  
+  function handlePointerDown(e) {
+    if (e.button !== 0) return;
+    isDrawing = true;
+    canvas.setPointerCapture(e.pointerId);
+    
+    const point = getPoint(e);
+    
+    if (currentTool === 'pen') {
+      currentStroke = {
+        points: [point],
+        color: currentColor,
+        size: currentSize
+      };
+    } else if (currentTool === 'eraser') {
+      eraseAt(point);
+    }
+    
+    render();
+  }
+  
+  function handlePointerMove(e) {
+    if (!isDrawing) return;
+    
+    const point = getPoint(e);
+    
+    if (currentTool === 'pen' && currentStroke) {
+      currentStroke.points.push(point);
+      render();
+    } else if (currentTool === 'eraser') {
+      eraseAt(point);
+    }
+  }
+  
+  function handlePointerUp(e) {
+    if (!isDrawing) return;
+    isDrawing = false;
+    canvas.releasePointerCapture(e.pointerId);
+    
+    if (currentTool === 'pen' && currentStroke && currentStroke.points.length > 1) {
+      strokes.push(currentStroke);
+      options.onStrokeComplete(currentStroke);
+    }
+    
+    currentStroke = null;
+    render();
+  }
+  
+  function eraseAt(point) {
+    const eraserRadius = 0.03; // 3% of canvas
+    const remaining = strokes.filter(stroke => {
+      return !stroke.points.some(p => {
+        const dx = p.x - point.x;
+        const dy = p.y - point.y;
+        return Math.sqrt(dx * dx + dy * dy) < eraserRadius;
+      });
+    });
+    
+    if (remaining.length !== strokes.length) {
+      strokes = remaining;
+      render();
+      options.onErase(strokes);
+    }
+  }
+  
+  canvas.addEventListener('pointerdown', handlePointerDown);
+  canvas.addEventListener('pointermove', handlePointerMove);
+  canvas.addEventListener('pointerup', handlePointerUp);
+  canvas.addEventListener('pointercancel', handlePointerUp);
+  
+  window.addEventListener('resize', debounce(100, resize));
+  
+  // Initial resize
+  setTimeout(resize, 0);
+  
+  return {
+    setStrokes(newStrokes) {
+      strokes = newStrokes.map(s => ({
+        points: [...s.points],
+        color: s.color,
+        size: s.size
+      }));
+      render();
+    },
+    getStrokes() {
+      return strokes;
+    },
+    setColor(color) {
+      currentColor = color;
+    },
+    setSize(size) {
+      currentSize = size;
+    },
+    setTool(tool) {
+      currentTool = tool;
+    },
+    clear() {
+      strokes = [];
+      render();
+      options.onErase([]);
+    },
+    resize,
+    destroy() {
+      canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('pointercancel', handlePointerUp);
+    }
+  };
+}
+
+// ============================================
+// Utilities
+// ============================================
+
+function debounce(ms, fn) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
+// ============================================
+// Main Application
+// ============================================
+
+let notebook = createNotebook();
+let textEditor;
+let drawingCanvas;
+
+const article = document.querySelector('article');
+const textEditorContainer = document.getElementById('textEditor');
+const canvasContainer = document.getElementById('canvasContainer');
+const canvas = document.getElementById('drawingCanvas');
+const pageIndicator = document.getElementById('pageIndicator');
+
+// Mode buttons
+const textModeBtn = document.getElementById('textModeBtn');
+const drawModeBtn = document.getElementById('drawModeBtn');
+const drawingTools = document.querySelectorAll('.drawing-tools');
+
+// Tool buttons
+const penTool = document.getElementById('penTool');
+const eraserTool = document.getElementById('eraserTool');
+const clearBtn = document.getElementById('clearBtn');
+const sizeButtons = document.querySelectorAll('.size-btn');
+const colorButtons = document.querySelectorAll('.color-btn');
+
+// Page buttons
+const prevPageBtn = document.getElementById('prevPageBtn');
+const nextPageBtn = document.getElementById('nextPageBtn');
+const addPageBtn = document.getElementById('addPageBtn');
+const deletePageBtn = document.getElementById('deletePageBtn');
+
+// Initialize text editor
+textEditor = createTextEditor(article, () => {
+  notebook = updatePageText(notebook, textEditor.get());
+  debouncedSave();
+});
+
+// Initialize drawing canvas
+drawingCanvas = createDrawingCanvas(canvas, {
+  onStrokeComplete(stroke) {
+    notebook = addStroke(notebook, stroke);
+    debouncedSave();
+  },
+  onErase(remainingStrokes) {
+    notebook = updateStrokes(notebook, remainingStrokes);
+    debouncedSave();
+  }
+});
+
+const debouncedSave = debounce(500, async () => {
+  await saveToHash(notebook);
+  saveToLocalStorage(notebook);
+});
+
+// Mode switching
+function updateMode() {
+  const isDrawing = notebook.currentMode === 'drawing';
+  
+  textModeBtn.classList.toggle('active', !isDrawing);
+  drawModeBtn.classList.toggle('active', isDrawing);
+  
+  // Canvas overlays text - enable pointer events only in drawing mode
+  canvasContainer.classList.toggle('drawing-active', isDrawing);
+  
+  drawingTools.forEach(el => el.classList.toggle('hidden', !isDrawing));
+  
+  if (isDrawing) {
+    drawingCanvas.resize();
+  } else {
+    textEditor.focus();
+  }
+}
+
+textModeBtn.addEventListener('click', () => {
+  notebook = setMode(notebook, 'text');
+  updateMode();
+  debouncedSave();
+});
+
+drawModeBtn.addEventListener('click', () => {
+  notebook = setMode(notebook, 'drawing');
+  updateMode();
+  debouncedSave();
+});
+
+// Drawing tools
+penTool.addEventListener('click', () => {
+  penTool.classList.add('active');
+  eraserTool.classList.remove('active');
+  drawingCanvas.setTool('pen');
+});
+
+eraserTool.addEventListener('click', () => {
+  eraserTool.classList.add('active');
+  penTool.classList.remove('active');
+  drawingCanvas.setTool('eraser');
+});
+
+clearBtn.addEventListener('click', () => {
+  if (confirm('Clear all drawings on this page?')) {
+    drawingCanvas.clear();
+    notebook = clearStrokes(notebook);
+    debouncedSave();
+  }
+});
+
+sizeButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    sizeButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    drawingCanvas.setSize(parseInt(btn.dataset.size, 10));
+  });
+});
+
+colorButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    colorButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    drawingCanvas.setColor(btn.dataset.color);
+  });
+});
+
+// Page navigation
+function updatePageDisplay() {
+  const page = notebook.pages[notebook.currentPageIndex];
+  textEditor.set(page.textContent);
+  drawingCanvas.setStrokes(page.strokes);
+  pageIndicator.textContent = `${notebook.currentPageIndex + 1} / ${notebook.pages.length}`;
+}
+
+prevPageBtn.addEventListener('click', () => {
+  if (notebook.currentPageIndex > 0) {
+    notebook = setCurrentPage(notebook, notebook.currentPageIndex - 1);
+    updatePageDisplay();
+    debouncedSave();
+  }
+});
+
+nextPageBtn.addEventListener('click', () => {
+  if (notebook.currentPageIndex < notebook.pages.length - 1) {
+    notebook = setCurrentPage(notebook, notebook.currentPageIndex + 1);
+    updatePageDisplay();
+    debouncedSave();
+  }
+});
+
+addPageBtn.addEventListener('click', () => {
+  notebook = addPage(notebook);
+  updatePageDisplay();
+  debouncedSave();
+});
+
+deletePageBtn.addEventListener('click', () => {
+  if (notebook.pages.length > 1) {
+    if (confirm('Delete this page?')) {
+      notebook = deletePage(notebook, notebook.currentPageIndex);
+      updatePageDisplay();
+      debouncedSave();
+    }
+  }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyS') {
+    e.preventDefault();
+    download();
+  }
+});
+
+async function download() {
+  const doc = document.documentElement.cloneNode(true);
+  doc.querySelectorAll('script').forEach(s => s.remove());
+  doc.querySelectorAll('.noprint').forEach(s => s.remove());
+  doc.querySelector('article')?.removeAttribute('contenteditable');
+  const html = '<!DOCTYPE html>\n' + doc.outerHTML;
+  
+  const title = article.textContent?.split('\n')[0]?.slice(0, 50) || 'Drawing Notebook';
+  
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await showSaveFilePicker({
+        suggestedName: title + '.html',
+        types: [{ description: 'HTML file', accept: { 'text/html': ['.html'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(html);
+      await writable.close();
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = title + '.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Load initial state
+async function init() {
+  let loaded = await loadFromHash();
+  if (!loaded) {
+    loaded = loadFromLocalStorage();
+  }
+  if (loaded) {
+    notebook = loaded;
+  }
+  
+  updateMode();
+  updatePageDisplay();
+  
+  // Always render canvas so drawings are visible in both modes
+  drawingCanvas.resize();
+}
+
+// Event listeners for hash changes
+window.addEventListener('hashchange', async () => {
+  const loaded = await loadFromHash();
+  if (loaded) {
+    notebook = loaded;
+    updateMode();
+    updatePageDisplay();
+  }
+});
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+
+// Theme toggle
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const sunIcon = document.getElementById('sunIcon');
+const moonIcon = document.getElementById('moonIcon');
+
+function getPreferredTheme() {
+  const saved = localStorage.getItem('theme');
+  if (saved) return saved;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function updateThemeIcons(theme) {
+  if (theme === 'dark') {
+    sunIcon.style.display = 'none';
+    moonIcon.style.display = 'block';
+  } else {
+    sunIcon.style.display = 'block';
+    moonIcon.style.display = 'none';
+  }
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+  updateThemeIcons(theme);
+}
+
+// Initialize theme
+const initialTheme = getPreferredTheme();
+setTheme(initialTheme);
+
+themeToggleBtn.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme') || getPreferredTheme();
+  const newTheme = current === 'dark' ? 'light' : 'dark';
+  setTheme(newTheme);
+});
+
+// Initialize
+init();
+</script>
+</body>
+</html>
