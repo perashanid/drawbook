@@ -1,0 +1,16 @@
+{
+  "name": "Drawing Notebook",
+  "short_name": "Notebook",
+  "description": "A minimalist notebook combining text and freehand drawing",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0569fa",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
