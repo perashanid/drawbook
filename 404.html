@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>404 Not found</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: light dark;
+    background-color: #fff;
+    color: #161616;
+
+    @media (prefers-color-scheme: dark) {
+      background-color: #000;
+      color: #fff;
+    }
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 18px;
+    font: 18px / 1.5 system-ui;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1 {
+    font-size: 2em;
+    font-weight: 500;
+    margin-bottom: 0.5em;
+  }
+
+  p {
+    margin-bottom: 2em;
+    opacity: 0.6;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 6px;
+    text-decoration-thickness: 1px;
+    transition: opacity 0.2s;
+  }
+</style>
+<body>
+  <h1>404</h1>
+  <p>Page not found</p>
+  <a href="/">Go home</a>
+</body>
